@@ -15,6 +15,7 @@ import com.example.nativeinsight.logic.FlashcardParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -24,26 +25,43 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         application,
         AppDatabase::class.java, "native-insight-db"
     )
-        .fallbackToDestructiveMigration() // CRITICAL: This allows the app to reset the DB since we changed the schema
+        .fallbackToDestructiveMigration()
         .build()
 
-    // 1. The Search Trigger
     val searchQuery = MutableStateFlow("")
+    private val refreshTrigger = MutableStateFlow(0)
 
-    // 2. The Stream (Pager)
-    // Whenever 'searchQuery' changes, this restarts the Paging stream with the new filter
-    val flashcardPager: Flow<PagingData<Flashcard>> = searchQuery.flatMapLatest { query ->
+    val isFlipped = MutableStateFlow(false)
+    // Combined stream: Reacts to search text changes OR the refresh button
+    val flashcardPager: Flow<PagingData<Flashcard>> = combine(searchQuery, refreshTrigger) { query, _ ->
+        query
+    }.flatMapLatest { query ->
         Pager(
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
             pagingSourceFactory = {
-                if (query.isBlank()) db.flashcardDao().getAllFlashcards()
-                else db.flashcardDao().searchFlashcards("$query*") // The '*' allows partial matching
+                if (query.isBlank()) {
+                    // Discovery Mode: Single Random Card
+                    db.flashcardDao().getDiscoveryCard()
+                } else {
+                    // Search Mode: Unlimited results
+                    db.flashcardDao().searchFlashcards(query)
+                }
             }
         ).flow
     }.cachedIn(viewModelScope)
 
     fun onSearchQueryChanged(newQuery: String) {
         searchQuery.value = newQuery
+    }
+
+    // Forces the random query to re-run
+    fun refreshDiscovery() {
+        isFlipped.value = false
+        refreshTrigger.value += 1
+    }
+
+    fun toggleFlip() {
+        isFlipped.value = !isFlipped.value
     }
 
     fun importFile(uri: Uri) {

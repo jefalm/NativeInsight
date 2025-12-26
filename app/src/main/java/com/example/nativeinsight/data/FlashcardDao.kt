@@ -10,16 +10,20 @@ interface FlashcardDao {
     @Upsert
     suspend fun upsertAll(flashcards: List<Flashcard>)
 
-    // By selecting `rowid` and the other columns explicitly, we ensure Room can map them
-    // correctly to the Flashcard data class fields, resolving the KSP error.
+    @Query("SELECT * FROM flashcards ORDER BY RANDOM() LIMIT 1")
+    fun getDiscoveryCard(): PagingSource<Int, Flashcard>
+
     @Query("""
-    SELECT rowid, concept, category, idiom_density, front_pt, back_en, literal_logic
-    FROM flash_cards_fts 
-    WHERE flash_cards_fts MATCH :query 
-    ORDER BY length(concept) ASC, rowid ASC
-""")
+        SELECT * FROM flashcards 
+        WHERE concept LIKE '%' || :query || '%' 
+           OR front_pt LIKE '%' || :query || '%' 
+           OR back_en LIKE '%' || :query || '%' 
+           OR category LIKE '%' || :query || '%'
+        ORDER BY length(concept) ASC
+    """)
     fun searchFlashcards(query: String): PagingSource<Int, Flashcard>
 
-    @Query("SELECT rowid, concept, category, idiom_density, front_pt, back_en, literal_logic FROM flash_cards_fts ORDER BY rowid DESC")
+    // Updated: Uses SQLite's internal rowid to maintain "Newest First" order
+    @Query("SELECT * FROM flashcards ORDER BY rowid DESC")
     fun getAllFlashcards(): PagingSource<Int, Flashcard>
 }
