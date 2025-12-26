@@ -2,11 +2,17 @@ package com.example.nativeinsight.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "flash_cards")
+// FTS4 creates a specialized SQLite table for massive text datasets
+@Fts4
+@Entity(tableName = "flash_cards_fts")
 data class Flashcard(
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
+    @ColumnInfo(name = "rowid")
+    val id: Int = 0, // FTS requires an Int ID
+
     @ColumnInfo(name = "concept")
     val concept: String,
 
