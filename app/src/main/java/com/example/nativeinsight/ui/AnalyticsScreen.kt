@@ -65,10 +65,18 @@ fun RevisionBarRow(stat: RevisionStat, maxCount: Int) {
 }
 
 fun getBarColor(level: Int): Brush {
-    return when {
-        level == 0 -> Brush.horizontalGradient(listOf(Color(0xFF90A4AE), Color(0xFF78909C)))
-        level == 1 -> Brush.horizontalGradient(listOf(Color(0xFF64B5F6), Color(0xFF42A5F5)))
-        level == 2 -> Brush.horizontalGradient(listOf(Color(0xFF7986CB), Color(0xFF5C6BC0)))
-        else -> Brush.horizontalGradient(listOf(Color(0xFF81C784), Color(0xFF66BB6A)))
+    return when (level) {
+        0 -> Brush.horizontalGradient(listOf(Color(0xFF90A4AE), Color(0xFF78909C))) // Slate Gray (New)
+        1 -> Brush.horizontalGradient(listOf(Color(0xFF64B5F6), Color(0xFF42A5F5))) // Light Blue
+        2 -> Brush.horizontalGradient(listOf(Color(0xFF7986CB), Color(0xFF5C6BC0))) // Indigo
+        3 -> Brush.horizontalGradient(listOf(Color(0xFF9575CD), Color(0xFF7E57C2))) // Deep Purple
+        4 -> Brush.horizontalGradient(listOf(Color(0xFFBA68C8), Color(0xFFAB47BC))) // Orchid Purple
+        5 -> Brush.horizontalGradient(listOf(Color(0xFFF06292), Color(0xFFEC407A))) // Pink
+        6 -> Brush.horizontalGradient(listOf(Color(0xFFFF8A65), Color(0xFFFF7043))) // Coral Red
+        7 -> Brush.horizontalGradient(listOf(Color(0xFFFFB74D), Color(0xFFFFA726))) // Orange
+        8 -> Brush.horizontalGradient(listOf(Color(0xFFFFD54F), Color(0xFFFFCA28))) // Amber/Gold
+        9 -> Brush.horizontalGradient(listOf(Color(0xFFAED581), Color(0xFF9CCC65))) // Light Green
+        10 -> Brush.horizontalGradient(listOf(Color(0xFF81C784), Color(0xFF66BB6A))) // Green
+        else -> Brush.horizontalGradient(listOf(Color(0xFF4DB6AC), Color(0xFF26A69A))) // Teal (Mastery)
     }
 }
