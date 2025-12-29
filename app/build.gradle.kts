@@ -41,9 +41,9 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
+    /*composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
-    }
+    }*/
 }
 
 dependencies {
@@ -70,5 +70,11 @@ dependencies {
 
     // Lifecycle & Coroutines
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    //implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
+    // Add this line for collectAsStateWithLifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.0")
+
+    // Check if you have Material Icons Extended (useful for analytics icons)
+    implementation("androidx.compose.material:material-icons-extended:1.6.7")
 }

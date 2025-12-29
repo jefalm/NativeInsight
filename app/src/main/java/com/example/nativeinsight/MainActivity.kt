@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home // [NEW] Icon
+import androidx.compose.material.icons.filled.Info // [NEW] Icon for Stats
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -28,9 +30,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar // [NEW]
+import androidx.compose.material3.NavigationBarItem // [NEW]
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface // [NEW]
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -51,6 +56,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import com.example.nativeinsight.data.Flashcard
+import com.example.nativeinsight.ui.AnalyticsScreen // [NEW] Import your new screen
 import com.example.nativeinsight.ui.theme.NativeInsightTheme
 import com.example.nativeinsight.viewmodel.DashboardViewModel
 
@@ -59,12 +65,56 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             NativeInsightTheme {
-                DashboardScreen()
+                // [UPDATE] Call MainScreen instead of DashboardScreen directly
+                MainScreen()
             }
         }
     }
 }
 
+// [NEW] This Composable manages the Bottom Navigation and switching screens
+@Composable
+fun MainScreen() {
+    // Create the ViewModel ONCE here to share it between screens
+    val viewModel: DashboardViewModel = viewModel()
+
+    // State to track which tab is active ("dashboard" or "analytics")
+    var currentScreen by remember { mutableStateOf("dashboard") }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Practice") },
+                    label = { Text("Practice") },
+                    selected = currentScreen == "dashboard",
+                    onClick = { currentScreen = "dashboard" }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Info, contentDescription = "Stats") },
+                    label = { Text("Stats") },
+                    selected = currentScreen == "analytics",
+                    onClick = { currentScreen = "analytics" }
+                )
+            }
+        }
+    ) { innerPadding ->
+        // Surface handles the background and the padding from the bottom bar
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            when (currentScreen) {
+                "dashboard" -> DashboardScreen(viewModel = viewModel)
+                "analytics" -> AnalyticsScreen(viewModel = viewModel)
+            }
+        }
+    }
+}
+
+// [EXISTING] Your DashboardScreen logic remains the same
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems()
@@ -77,6 +127,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         onResult = { uri -> uri?.let { viewModel.importFile(it) } }
     )
 
+    // Note: We don't need another Scaffold here strictly, but it's fine to keep
+    // for the internal padding logic of this specific screen.
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background
@@ -97,7 +149,11 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Discovery Refresh Button
-                    IconButton(onClick = { viewModel.refreshDiscovery() }) {
+                    IconButton(onClick = {
+                        // [CRITICAL] Pass the current card if available to increment stats
+                        val currentCard = if (flashcards.itemCount > 0) flashcards[0] else null
+                        viewModel.refreshDiscovery(currentCard)
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh Discovery",
@@ -182,6 +238,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     }
 }
 
+// [EXISTING] Helper Composable
 @Composable
 fun FlashcardFlipItem(
     card: Flashcard,

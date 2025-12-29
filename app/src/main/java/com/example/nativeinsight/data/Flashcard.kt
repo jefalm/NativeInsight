@@ -5,7 +5,7 @@ import androidx.room.Entity
 
 @Entity(
     tableName = "flashcards",
-    primaryKeys = ["concept", "front_pt"] // Composite Key
+    primaryKeys = ["concept", "front_pt"]
 )
 data class Flashcard(
     @ColumnInfo(name = "concept")
@@ -24,5 +24,12 @@ data class Flashcard(
     val backEn: String,
 
     @ColumnInfo(name = "literal_logic")
-    val literalLogic: String
+    val literalLogic: String,
+
+    // [New] Weighted Repetition Fields
+    @ColumnInfo(name = "revision_count", defaultValue = "0")
+    val revisionCount: Int = 0,
+
+    @ColumnInfo(name = "last_reviewed", defaultValue = "0")
+    val lastReviewed: Long = 0
 )
