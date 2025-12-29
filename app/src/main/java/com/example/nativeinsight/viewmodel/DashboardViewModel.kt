@@ -23,6 +23,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import androidx.sqlite.db.SimpleSQLiteQuery
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -183,4 +184,32 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0
         )
+
+    fun backupDatabase(destinationUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Force a "Checkpoint" to ensure all data in memory/WAL is written to the main file
+                //    This prevents backing up an empty or incomplete database.
+                db.openHelper.writableDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)"))
+
+                // 2. Locate the database file
+                val dbName = "native-insight-db"
+                val context = getApplication<Application>()
+                val dbFile = context.getDatabasePath(dbName)
+
+                // 3. Copy data from the db file to the destination Uri (Google Drive)
+                if (dbFile.exists()) {
+                    context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+                        dbFile.inputStream().use { inputStream ->
+                            inputStream.copyTo(outputStream)
+                        }
+                    }
+                    // Optional: Emit a success state or Toast here
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Optional: Emit an error state here
+            }
+        }
+    }
 }

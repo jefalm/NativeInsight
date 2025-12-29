@@ -1,5 +1,7 @@
 package com.example.nativeinsight.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -19,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.nativeinsight.data.RevisionStat
 import com.example.nativeinsight.viewmodel.DashboardViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AnalyticsScreen(viewModel: DashboardViewModel) {
@@ -27,15 +32,44 @@ fun AnalyticsScreen(viewModel: DashboardViewModel) {
 
     val maxCount = remember(stats) { stats.maxOfOrNull { it.cardCount } ?: 1 }
 
+    // --- Backup Launcher ---
+    val backupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/x-sqlite3")
+    ) { uri ->
+        uri?.let { viewModel.backupDatabase(it) }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Knowledge Distribution", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("$totalCards total cards tracked", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(24.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.weight(1f)
+        ) {
             items(stats) { stat ->
                 RevisionBarRow(stat, maxCount)
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- UPDATED: Dark Themed Backup Button ---
+        Button(
+            onClick = {
+                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val fileName = "native_$timeStamp.db"
+                backupLauncher.launch(fileName)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            // Force Dark Colors
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF1E1E1E), // Dark Gray/Black
+                contentColor = Color.White          // White Text
+            )
+        ) {
+            Text("Backup Database to Drive")
         }
     }
 }
@@ -66,17 +100,17 @@ fun RevisionBarRow(stat: RevisionStat, maxCount: Int) {
 
 fun getBarColor(level: Int): Brush {
     return when (level) {
-        0 -> Brush.horizontalGradient(listOf(Color(0xFF90A4AE), Color(0xFF78909C))) // Slate Gray (New)
-        1 -> Brush.horizontalGradient(listOf(Color(0xFF64B5F6), Color(0xFF42A5F5))) // Light Blue
-        2 -> Brush.horizontalGradient(listOf(Color(0xFF7986CB), Color(0xFF5C6BC0))) // Indigo
-        3 -> Brush.horizontalGradient(listOf(Color(0xFF9575CD), Color(0xFF7E57C2))) // Deep Purple
-        4 -> Brush.horizontalGradient(listOf(Color(0xFFBA68C8), Color(0xFFAB47BC))) // Orchid Purple
-        5 -> Brush.horizontalGradient(listOf(Color(0xFFF06292), Color(0xFFEC407A))) // Pink
-        6 -> Brush.horizontalGradient(listOf(Color(0xFFFF8A65), Color(0xFFFF7043))) // Coral Red
-        7 -> Brush.horizontalGradient(listOf(Color(0xFFFFB74D), Color(0xFFFFA726))) // Orange
-        8 -> Brush.horizontalGradient(listOf(Color(0xFFFFD54F), Color(0xFFFFCA28))) // Amber/Gold
-        9 -> Brush.horizontalGradient(listOf(Color(0xFFAED581), Color(0xFF9CCC65))) // Light Green
-        10 -> Brush.horizontalGradient(listOf(Color(0xFF81C784), Color(0xFF66BB6A))) // Green
-        else -> Brush.horizontalGradient(listOf(Color(0xFF4DB6AC), Color(0xFF26A69A))) // Teal (Mastery)
+        0 -> Brush.horizontalGradient(listOf(Color(0xFF90A4AE), Color(0xFF78909C)))
+        1 -> Brush.horizontalGradient(listOf(Color(0xFF64B5F6), Color(0xFF42A5F5)))
+        2 -> Brush.horizontalGradient(listOf(Color(0xFF7986CB), Color(0xFF5C6BC0)))
+        3 -> Brush.horizontalGradient(listOf(Color(0xFF9575CD), Color(0xFF7E57C2)))
+        4 -> Brush.horizontalGradient(listOf(Color(0xFFBA68C8), Color(0xFFAB47BC)))
+        5 -> Brush.horizontalGradient(listOf(Color(0xFFF06292), Color(0xFFEC407A)))
+        6 -> Brush.horizontalGradient(listOf(Color(0xFFFF8A65), Color(0xFFFF7043)))
+        7 -> Brush.horizontalGradient(listOf(Color(0xFFFFB74D), Color(0xFFFFA726)))
+        8 -> Brush.horizontalGradient(listOf(Color(0xFFFFD54F), Color(0xFFFFCA28)))
+        9 -> Brush.horizontalGradient(listOf(Color(0xFFAED581), Color(0xFF9CCC65)))
+        10 -> Brush.horizontalGradient(listOf(Color(0xFF81C784), Color(0xFF66BB6A)))
+        else -> Brush.horizontalGradient(listOf(Color(0xFF4DB6AC), Color(0xFF26A69A)))
     }
 }
