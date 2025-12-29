@@ -59,6 +59,9 @@ import com.example.nativeinsight.data.Flashcard
 import com.example.nativeinsight.ui.AnalyticsScreen // [NEW] Import your new screen
 import com.example.nativeinsight.ui.theme.NativeInsightTheme
 import com.example.nativeinsight.viewmodel.DashboardViewModel
+import com.example.nativeinsight.ui.FloatingIcon
+import com.example.nativeinsight.ui.getCategoryStyle
+import androidx.compose.foundation.layout.size
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -238,7 +241,9 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     }
 }
 
-// [EXISTING] Helper Composable
+// ... (Keep MainScreen and DashboardScreen exactly as they are)
+
+// [UPDATE] Replace the entire FlashcardFlipItem function with this:
 @Composable
 fun FlashcardFlipItem(
     card: Flashcard,
@@ -246,6 +251,9 @@ fun FlashcardFlipItem(
     onToggleFlip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 1. Get the visual style based on the category
+    val style = getCategoryStyle(card.category)
+
     // Animation State
     val rotation by animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,
@@ -260,19 +268,41 @@ fun FlashcardFlipItem(
                 cameraDistance = 12f * density
             }
             .clickable { onToggleFlip() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        // Use a dark container color to make the neon colors pop (like the game)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
             if (rotation <= 90f) {
-                // --- FRONT SIDE ---
+                // --- FRONT SIDE (Portuguese) ---
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Header: Category Label + Floating Icon
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = style.label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = style.color // Neon color
+                        )
+                        FloatingIcon(
+                            icon = style.icon,
+                            tint = style.color,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     Text(
                         text = card.frontPt,
                         style = MaterialTheme.typography.headlineMedium,
@@ -288,17 +318,42 @@ fun FlashcardFlipItem(
                         color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             } else {
-                // --- BACK SIDE ---
+                // --- BACK SIDE (English) ---
                 Column(
-                    modifier = Modifier.graphicsLayer { rotationY = 180f },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer { rotationY = 180f }, // Correct text mirroring
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Header: Category Label + Floating Icon (Mirrored for back)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween, // Swap alignment if desired, or keep uniform
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Note: Because the whole Column is flipped 180, this Row layout
+                        // physically appears correctly left-to-right to the user.
+                        Text(
+                            text = style.label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = style.color.copy(alpha = 0.7f)
+                        )
+                        FloatingIcon(
+                            icon = style.icon,
+                            tint = style.color.copy(alpha = 0.7f),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
                     Text(
                         text = card.concept.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
@@ -307,9 +362,10 @@ fun FlashcardFlipItem(
                         text = card.backEn,
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = style.color, // Use the category color for the answer!
                         textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }

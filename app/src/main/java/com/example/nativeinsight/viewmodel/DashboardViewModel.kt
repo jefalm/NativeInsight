@@ -193,6 +193,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 db.openHelper.writableDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)"))
 
                 // 2. Locate the database file
+                db.close()
+
                 val dbName = "native-insight-db"
                 val context = getApplication<Application>()
                 val dbFile = context.getDatabasePath(dbName)
@@ -206,6 +208,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                     // Optional: Emit a success state or Toast here
                 }
+                // 3. RE-INIT: Trigger a simple query to re-open the database
+                // This ensures the next user action doesn't experience a 'cold start' lag
+                db.flashcardDao().getCountForBucket(0)
+
             } catch (e: Exception) {
                 e.printStackTrace()
                 // Optional: Emit an error state here
