@@ -111,9 +111,11 @@ class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
                     }
                     return true // Consume the event so the volume doesn't actually change
                 }
+                KeyEvent.KEYCODE_MEDIA_PLAY,
+                KeyEvent.KEYCODE_MEDIA_PAUSE,
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 KeyEvent.KEYCODE_HEADSETHOOK -> {
-                    // Trigger the mic logic in the ViewModel
-                    viewModel.triggerMic()
+                    viewModel.triggerMicFromHardware()
                     return true
                 }
             }
@@ -147,6 +149,8 @@ fun MainScreen() {
             }
         }
     }
+
+
 
     Scaffold(
         bottomBar = {
@@ -202,12 +206,15 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val globalIsFlipped by viewModel.isFlipped.collectAsState()
+    val micTrigger by viewModel.micTriggerSignal.collectAsState()
 
     // Context for Toasts and Intent
     val context = LocalContext.current
 
     // State for speech matching
     var smartMaskedText by remember { mutableStateOf<String?>(null) }
+
+
 
     // Speech Launcher
     val speechLauncher = rememberLauncherForActivityResult(
@@ -251,6 +258,20 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                         // If they were on the front, they stay on the front.
                     }
                 }
+            }
+        }
+
+    }
+    LaunchedEffect(micTrigger) {
+        // We only trigger if micTrigger > 0 (to avoid running on app start)
+        if (micTrigger > 0 && flashcards.itemCount > 0) {
+            val currentCard = flashcards[0]
+            if (currentCard != null) {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                }
+                speechLauncher.launch(intent)
             }
         }
     }

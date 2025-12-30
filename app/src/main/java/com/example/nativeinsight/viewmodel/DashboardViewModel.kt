@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import androidx.sqlite.db.SimpleSQLiteQuery
+import kotlinx.coroutines.flow.asStateFlow
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -251,6 +252,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _micTrigger.value += 1
     }
 
+    // Signal for the UI to open the microphone
+    private val _micTriggerSignal = MutableStateFlow(0L)
+    val micTriggerSignal = _micTriggerSignal.asStateFlow()
 
+    fun triggerMicFromHardware() {
+        _micTriggerSignal.value = System.currentTimeMillis()
+    }
 
 }
