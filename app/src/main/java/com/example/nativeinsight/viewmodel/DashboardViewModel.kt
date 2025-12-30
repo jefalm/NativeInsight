@@ -160,8 +160,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 getApplication<Application>().contentResolver.openInputStream(uri)?.use { stream ->
-                    val rawText = stream.reader().readText()
-                    val parsedCards = FlashcardParser.parse(rawText)
+                    //val rawText = stream.reader().readText()
+                    val parsedCards = FlashcardParser.parse(stream)
                     db.flashcardDao().upsertAll(parsedCards)
                 }
             } catch (e: Exception) {

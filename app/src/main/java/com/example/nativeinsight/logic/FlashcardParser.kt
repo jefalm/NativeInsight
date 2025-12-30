@@ -1,87 +1,89 @@
 package com.example.nativeinsight.logic
 
 import com.example.nativeinsight.data.Flashcard
-import android.util.Log
+import java.io.InputStream
 
 object FlashcardParser {
-
-    fun parse(rawContent: String): List<Flashcard> {
+    fun parse(inputStream: InputStream): List<Flashcard> {
         val flashcards = mutableListOf<Flashcard>()
 
-        // --- State Variables ---
+        // Default category if none is found
         var currentCategory = "General"
-        var currentConcept = ""
-        var currentFront = ""
-        var currentBack = ""
-        var currentLiteralBuilder = StringBuilder()
 
-        fun saveCard() {
-            if (currentConcept.isNotBlank()) {
-                val frontWords = currentFront.split(" ").size.toFloat()
-                val backWords = currentBack.split(" ").size.toFloat()
+        // State variables for the card currently being built
+        var concept = ""
+        var front = ""
+        var back = ""
+        var literal = ""
+
+        // Helper to save the pending card to the list
+        fun savePendingCard() {
+            if (concept.isNotBlank() && front.isNotBlank() && back.isNotBlank()) {
+
+                // [RESTORED] Idiom Density Calculation
+                // Using regex split to be safe against multiple spaces, or use split(" ") as originally intended
+                val frontWords = front.trim().split("\\s+".toRegex()).size.toFloat()
+                val backWords = back.trim().split("\\s+".toRegex()).size.toFloat()
                 val density = if (frontWords > 0) backWords / frontWords else 1.0f
 
                 flashcards.add(
                     Flashcard(
-                        concept = currentConcept.trim(),
+                        concept = concept.trim(),
+                        frontPt = front.trim(),
+                        backEn = back.trim(),
+                        literalLogic = literal.trim(),
                         category = currentCategory,
-                        idiomDensity = density,
-                        frontPt = currentFront.trim(),
-                        backEn = currentBack.trim(),
-                        literalLogic = currentLiteralBuilder.toString().trim()
+                        idiomDensity = density // Saved correctly
                     )
                 )
             }
-            // Reset
-            currentConcept = ""
-            currentFront = ""
-            currentBack = ""
-            currentLiteralBuilder.clear()
+            // Reset state for the next card
+            concept = ""
+            front = ""
+            back = ""
+            literal = ""
         }
 
-        val lines = rawContent.lines()
+        inputStream.bufferedReader().useLines { lines ->
+            lines.forEach { line ->
+                val trimmed = line.trim()
 
-        for (line in lines) {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) continue
+                when {
+                    // 1. Skip empty lines or separators
+                    trimmed.isEmpty() || trimmed == "---" -> {
+                        // Do nothing
+                    }
 
-            when {
-                trimmed.startsWith("Concept:", ignoreCase = true) -> {
-                    saveCard()
-                    currentConcept = trimmed.substringAfter("Concept:").trim()
-                }
-                trimmed.startsWith("Front (PT):", ignoreCase = true) -> {
-                    currentFront = trimmed.substringAfter("Front (PT):").trim()
-                }
-                trimmed.startsWith("Back (EN):", ignoreCase = true) -> {
-                    currentBack = trimmed.substringAfter("Back (EN):").trim()
-                }
-                trimmed.startsWith("Literal:", ignoreCase = true) -> {
-                    currentLiteralBuilder.append(trimmed.substringAfter("Literal:").trim())
-                }
-                else -> {
-                    val isHeaderOrSeparator =
-                        trimmed == "---" ||
-                                trimmed.startsWith("Flashcard:", ignoreCase = true) ||
-                                trimmed.contains("Flashcards", ignoreCase = true)
+                    // 2. New Concept Found -> Save the PREVIOUS card, start new one
+                    trimmed.startsWith("Concept:", ignoreCase = true) -> {
+                        savePendingCard()
+                        concept = trimmed.substringAfter(":").trim()
+                    }
 
-                    if (isHeaderOrSeparator) {
-                        if (trimmed != "---" && !trimmed.startsWith("Flashcard:")) {
-                            currentCategory = trimmed
-                                .replace("(Finalized)", "")
-                                .replace(Regex("""\[.*?\]"""), "")
-                                .trim()
-                        }
-                    } else if (currentLiteralBuilder.isNotEmpty()) {
-                        currentLiteralBuilder.append(" ").append(trimmed)
-                    } else {
-                        currentCategory = trimmed.replace("(Finalized)", "").trim()
+                    // 3. Parse Fields
+                    trimmed.startsWith("Front (PT):", ignoreCase = true) -> {
+                        front = trimmed.substringAfter(":").trim()
+                    }
+                    trimmed.startsWith("Back (EN):", ignoreCase = true) -> {
+                        back = trimmed.substringAfter(":").trim()
+                    }
+                    trimmed.startsWith("Literal:", ignoreCase = true) -> {
+                        literal = trimmed.substringAfter(":").trim()
+                    }
+
+                    // 4. Category Header Detected
+                    else -> {
+                        // It is a category header (e.g., "Music & Urban Culture")
+                        savePendingCard() // Save any pending card first
+                        currentCategory = trimmed
                     }
                 }
             }
         }
-        saveCard()
-        Log.d("Parser", "Parsed ${flashcards.size} cards.")
+
+        // Final save for the very last card in the file
+        savePendingCard()
+
         return flashcards
     }
 }

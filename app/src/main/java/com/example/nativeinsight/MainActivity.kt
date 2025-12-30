@@ -62,6 +62,9 @@ import com.example.nativeinsight.viewmodel.DashboardViewModel
 import com.example.nativeinsight.ui.FloatingIcon
 import com.example.nativeinsight.ui.getCategoryStyle
 import androidx.compose.foundation.layout.size
+import com.example.nativeinsight.ui.FloatingIcon
+import com.example.nativeinsight.ui.getCategoryStyle
+import androidx.compose.foundation.layout.size
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -242,6 +245,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 }
 
 // ... (Keep MainScreen and DashboardScreen exactly as they are)
+
 
 // [UPDATE] Replace the entire FlashcardFlipItem function with this:
 @Composable

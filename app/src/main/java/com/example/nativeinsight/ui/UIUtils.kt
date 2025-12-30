@@ -24,28 +24,48 @@ data class CategoryStyle(
 fun getCategoryStyle(categoryRaw: String): CategoryStyle {
     return when {
         categoryRaw.contains("Music", ignoreCase = true) || categoryRaw.contains("Urban", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.PlayArrow, // Represents Music/Media
+            icon = Icons.Default.MusicNote,
             color = Color(0xFFBD93F9),      // Purple
-            label = "Music & Vibe"
+            label = "Music & Urban Culture"
         )
         categoryRaw.contains("Workplace", ignoreCase = true) || categoryRaw.contains("Data", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.Settings,  // Represents Work/Tools
+            icon = Icons.Default.Assessment, // Bar chart/Data icon
             color = Color(0xFFFFB86C),      // Orange
-            label = "Work & Data"
+            label = "Workplace & Data"
         )
-        categoryRaw.contains("Health", ignoreCase = true) || categoryRaw.contains("Wellbeing", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.Favorite,  // Represents Health
+        categoryRaw.contains("Health", ignoreCase = true) -> CategoryStyle(
+            icon = Icons.Default.Favorite,
             color = Color(0xFF50FA7B),      // Green
-            label = "Health"
+            label = "Health & Wellbeing"
         )
-        categoryRaw.contains("Social", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.Face,      // Represents Social
+        categoryRaw.contains("Street", ignoreCase = true) -> CategoryStyle(
+            icon = Icons.Default.LocationOn,
             color = Color(0xFF8BE9FD),      // Cyan
-            label = "Social"
+            label = "Street & Social"
+        )
+        categoryRaw.contains("Dynamics", ignoreCase = true) -> CategoryStyle(
+            icon = Icons.Default.Groups,    // People icon
+            color = Color(0xFFFF79C6),      // Pink
+            label = "Social Dynamics"
+        )
+        categoryRaw.contains("Habits", ignoreCase = true) -> CategoryStyle(
+            icon = Icons.Default.Refresh,   // Loop icon
+            color = Color(0xFFF1FA8C),      // Yellow
+            label = "Habits & Hobbies"
+        )
+        categoryRaw.contains("Admin", ignoreCase = true) -> CategoryStyle(
+            icon = Icons.Default.List,
+            color = Color(0xFF6272A4),      // Muted Blue
+            label = "Life Admin & Logistics"
+        )
+        categoryRaw.contains("Global", ignoreCase = true) || categoryRaw.contains("News", ignoreCase = true) -> CategoryStyle(
+            icon = Icons.Default.Public,    // Globe icon
+            color = Color(0xFFFF5555),      // Red
+            label = "Global Context & News"
         )
         else -> CategoryStyle(
-            icon = Icons.Default.Star,      // Default/General
-            color = Color(0xFFF8F8F2),      // White/Grey
+            icon = Icons.Default.Star,
+            color = Color(0xFFF8F8F2),
             label = categoryRaw.ifBlank { "General" }
         )
     }
