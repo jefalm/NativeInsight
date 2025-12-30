@@ -65,6 +65,7 @@ import androidx.compose.foundation.layout.size
 import com.example.nativeinsight.ui.FloatingIcon
 import com.example.nativeinsight.ui.getCategoryStyle
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Edit
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +85,8 @@ fun MainScreen() {
     // Create the ViewModel ONCE here to share it between screens
     val viewModel: DashboardViewModel = viewModel()
 
+    val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems() // Collect here to share stat
+
     // State to track which tab is active ("dashboard" or "analytics")
     var currentScreen by remember { mutableStateOf("dashboard") }
 
@@ -101,6 +104,21 @@ fun MainScreen() {
                     label = { Text("Stats") },
                     selected = currentScreen == "analytics",
                     onClick = { currentScreen = "analytics" }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Edit, contentDescription = "Editor") },
+                    label = { Text("Editor") },
+                    selected = currentScreen == "editor",
+                    onClick = {
+                        // Logic: Identify the card based on the current UI state
+                        if (flashcards.itemCount > 0) {
+                            // In Discovery Mode (query is blank), index 0 is always the active card.
+                            // In Search Mode, this defaults to the top-most visible card in the list.
+                            val activeCard = flashcards[0]
+                            viewModel.setCardForEdit(activeCard)
+                        }
+                        currentScreen = "editor"
+                    }
                 )
             }
         }
@@ -132,6 +150,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri -> uri?.let { viewModel.importFile(it) } }
     )
+
+    var currentScreen by remember { mutableStateOf("dashboard") }
 
     // Note: We don't need another Scaffold here strictly, but it's fine to keep
     // for the internal padding logic of this specific screen.

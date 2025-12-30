@@ -85,6 +85,28 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // [NEW] State for the card currently being edited
+    val cardInEditMode = MutableStateFlow<Flashcard?>(null)
+
+    fun setCardForEdit(card: Flashcard?) {
+        cardInEditMode.value = card
+    }
+
+    fun updateCardField(updatedCard: Flashcard) {
+        cardInEditMode.value = updatedCard
+    }
+
+    fun saveEditedCard(onComplete: () -> Unit) {
+        val card = cardInEditMode.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            db.flashcardDao().update(card)
+            withContext(Dispatchers.Main) {
+                cardInEditMode.value = null
+                onComplete() // Callback to handle navigation back
+            }
+        }
+    }
+
     // Helper to find the first available bucket in the preferred order
     private fun resolveBucket(primary: Int, hasPrimary: Boolean, vararg fallbacks: Boolean): Int {
         if (hasPrimary) return primary

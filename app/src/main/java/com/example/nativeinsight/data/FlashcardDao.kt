@@ -6,6 +6,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import androidx.room.Update
 
 @Dao
 interface FlashcardDao {
@@ -57,6 +58,8 @@ interface FlashcardDao {
         ORDER BY revision_count ASC
     """)
     fun getRevisionDistribution(): Flow<List<RevisionStat>>
+    @Update
+    suspend fun update(flashcard: Flashcard)
 }
 
 data class RevisionStat(
