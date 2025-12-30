@@ -7,7 +7,8 @@ import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import androidx.room.Update
-
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 @Dao
 interface FlashcardDao {
     @Upsert
@@ -31,8 +32,8 @@ interface FlashcardDao {
     @Query("SELECT COUNT(*) FROM flashcards WHERE revision_count >= :minCount")
     suspend fun getCountForBucketAbove(minCount: Int): Int
 
-    @Query("UPDATE flashcards SET revision_count = revision_count + 1, last_reviewed = :timestamp WHERE concept = :concept AND front_pt = :frontPt")
-    suspend fun markCardReviewed(concept: String, frontPt: String, timestamp: Long)
+    @Query("UPDATE flashcards SET revision_count = revision_count + 1, last_reviewed = :timestamp WHERE id = :id")
+    suspend fun markCardReviewed(id: Int, timestamp: Long)
 
     // --- Existing Queries ---
 
@@ -60,6 +61,9 @@ interface FlashcardDao {
     fun getRevisionDistribution(): Flow<List<RevisionStat>>
     @Update
     suspend fun update(flashcard: Flashcard)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(flashcards: List<Flashcard>)
 }
 
 data class RevisionStat(

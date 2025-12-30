@@ -62,11 +62,8 @@ import com.example.nativeinsight.viewmodel.DashboardViewModel
 import com.example.nativeinsight.ui.FloatingIcon
 import com.example.nativeinsight.ui.getCategoryStyle
 import androidx.compose.foundation.layout.size
-import com.example.nativeinsight.ui.FloatingIcon
-import com.example.nativeinsight.ui.getCategoryStyle
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Edit
-
+import com.example.nativeinsight.ui.EditScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,6 +130,10 @@ fun MainScreen() {
             when (currentScreen) {
                 "dashboard" -> DashboardScreen(viewModel = viewModel)
                 "analytics" -> AnalyticsScreen(viewModel = viewModel)
+                "editor" -> EditScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { currentScreen = "dashboard" }
+                )
             }
         }
     }

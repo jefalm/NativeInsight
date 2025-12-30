@@ -2,12 +2,19 @@ package com.example.nativeinsight.data
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "flashcards",
-    primaryKeys = ["concept", "front_pt"]
+    // This ensures you still can't have duplicate text, keeping your Import logic safe
+    indices = [Index(value = ["concept", "front_pt"], unique = true)]
 )
 data class Flashcard(
+    // [NEW] Primary Key is now an ID
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
+
     @ColumnInfo(name = "concept")
     val concept: String,
 
@@ -26,7 +33,6 @@ data class Flashcard(
     @ColumnInfo(name = "literal_logic")
     val literalLogic: String,
 
-    // [New] Weighted Repetition Fields
     @ColumnInfo(name = "revision_count", defaultValue = "0")
     val revisionCount: Int = 0,
 

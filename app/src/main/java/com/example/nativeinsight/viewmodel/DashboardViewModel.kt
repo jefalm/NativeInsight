@@ -99,10 +99,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun saveEditedCard(onComplete: () -> Unit) {
         val card = cardInEditMode.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            // Because 'card' has an ID, Room knows exactly which row to update
             db.flashcardDao().update(card)
+
             withContext(Dispatchers.Main) {
                 cardInEditMode.value = null
-                onComplete() // Callback to handle navigation back
+                onComplete()
             }
         }
     }
@@ -138,11 +140,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun refreshDiscovery(currentCard: Flashcard?) {
         if (currentCard != null) {
             viewModelScope.launch(Dispatchers.IO) {
+                // [NEW CODE] Identifying card by ID
                 db.flashcardDao().markCardReviewed(
-                    concept = currentCard.concept,
-                    frontPt = currentCard.frontPt,
+                    id = currentCard.id,
                     timestamp = System.currentTimeMillis()
                 )
+
                 // Trigger UI update after DB write
                 withContext(Dispatchers.Main) {
                     isFlipped.value = false
@@ -184,7 +187,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 getApplication<Application>().contentResolver.openInputStream(uri)?.use { stream ->
                     //val rawText = stream.reader().readText()
                     val parsedCards = FlashcardParser.parse(stream)
-                    db.flashcardDao().upsertAll(parsedCards)
+                    db.flashcardDao().insertAll(parsedCards)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
