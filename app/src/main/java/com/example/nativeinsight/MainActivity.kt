@@ -1,6 +1,9 @@
 package com.example.nativeinsight
 
+import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -17,25 +20,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home // [NEW] Icon
-import androidx.compose.material.icons.filled.Info // [NEW] Icon for Stats
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar // [NEW]
-import androidx.compose.material3.NavigationBarItem // [NEW]
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface // [NEW]
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -45,7 +53,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,31 +67,19 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import com.example.nativeinsight.data.Flashcard
-import com.example.nativeinsight.ui.AnalyticsScreen // [NEW] Import your new screen
-import com.example.nativeinsight.ui.theme.NativeInsightTheme
-import com.example.nativeinsight.viewmodel.DashboardViewModel
+import com.example.nativeinsight.logic.SpeechComparator
+import com.example.nativeinsight.ui.AnalyticsScreen
+import com.example.nativeinsight.ui.EditScreen
 import com.example.nativeinsight.ui.FloatingIcon
 import com.example.nativeinsight.ui.getCategoryStyle
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.filled.Edit
-import com.example.nativeinsight.ui.EditScreen
-import android.content.Intent
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import com.example.nativeinsight.logic.SpeechComparator
-import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import com.example.nativeinsight.ui.theme.NativeInsightTheme
+import com.example.nativeinsight.viewmodel.DashboardViewModel
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             NativeInsightTheme {
-                // [UPDATE] Call MainScreen instead of DashboardScreen directly
                 MainScreen()
             }
         }
@@ -93,7 +92,7 @@ fun MainScreen() {
     // Create the ViewModel ONCE here to share it between screens
     val viewModel: DashboardViewModel = viewModel()
 
-    val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems() // Collect here to share stat
+    val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems()
 
     // State to track which tab is active ("dashboard" or "analytics")
     var currentScreen by remember { mutableStateOf("dashboard") }
@@ -120,8 +119,6 @@ fun MainScreen() {
                     onClick = {
                         // Logic: Identify the card based on the current UI state
                         if (flashcards.itemCount > 0) {
-                            // In Discovery Mode (query is blank), index 0 is always the active card.
-                            // In Search Mode, this defaults to the top-most visible card in the list.
                             val activeCard = flashcards[0]
                             viewModel.setCardForEdit(activeCard)
                         }
@@ -131,7 +128,6 @@ fun MainScreen() {
             }
         }
     ) { innerPadding ->
-        // Surface handles the background and the padding from the bottom bar
         Surface(
             modifier = Modifier
                 .fillMaxSize()
@@ -150,32 +146,89 @@ fun MainScreen() {
     }
 }
 
-// [EXISTING] Your DashboardScreen logic remains the same
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
-
     val globalIsFlipped by viewModel.isFlipped.collectAsState()
+
+    // Context for Toasts and Intent
+    val context = LocalContext.current
+
+    // [NEW] State for speech matching (lifted from the card to here)
+    var smartMaskedText by remember { mutableStateOf<String?>(null) }
+
+    // [NEW] Speech Launcher (lifted from the card to here)
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val data = result.data
+            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+
+            // Validate against the current card (index 0 in discovery mode)
+            if (flashcards.itemCount > 0) {
+                val currentCard = flashcards[0]
+                if (currentCard != null) {
+                    val comparison = SpeechComparator.evaluate(currentCard.backEn, spokenText)
+                    if (comparison.isSuccess) {
+                        smartMaskedText = comparison.maskedText
+                        Toast.makeText(context, "Good match! 🎯", Toast.LENGTH_SHORT).show()
+                        if (!viewModel.isFlipped.value) {
+                            viewModel.toggleFlip()
+                        }
+                    } else {
+                        Toast.makeText(context, "Try again (Accuracy < 50%)", Toast.LENGTH_SHORT).show()
+                        smartMaskedText = null
+                    }
+                }
+            }
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri -> uri?.let { viewModel.importFile(it) } }
     )
 
-    var currentScreen by remember { mutableStateOf("dashboard") }
-
-    // Note: We don't need another Scaffold here strictly, but it's fine to keep
-    // for the internal padding logic of this specific screen.
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        // [NEW] Floating Mic Button (Only in Discovery Mode)
+        floatingActionButtonPosition = FabPosition.Center,
+        floatingActionButton = {
+            if (searchQuery.isBlank() && flashcards.itemCount > 0) {
+                FloatingActionButton(
+                    onClick = {
+                        // Launch speech recognition
+                        val currentCard = flashcards[0]
+                        if (currentCard != null) {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                                //putExtra(RecognizerIntent.EXTRA_PROMPT, "Read: ${currentCard.backEn}")
+                            }
+                            speechLauncher.launch(intent)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(bottom = 1.dp) // Slight padding to separate from Nav Bar area
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = "Speak")
+                }
+            }
+        }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+        Column(modifier = Modifier
+            .padding(padding)
+            .padding(16.dp)) {
 
             // Top Bar
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -186,17 +239,16 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                     fontWeight = FontWeight.Bold
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Discovery Refresh Button
                     IconButton(onClick = {
-                        // [CRITICAL] Pass the current card if available to increment stats
                         val currentCard = if (flashcards.itemCount > 0) flashcards[0] else null
+                        // [UPDATE] Reset mask on refresh
+                        smartMaskedText = null
                         viewModel.refreshDiscovery(currentCard)
                     }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh Discovery",
                             tint = MaterialTheme.colorScheme.primary
-
                         )
                     }
                     Spacer(modifier = Modifier.padding(4.dp))
@@ -213,9 +265,15 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
 
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                onValueChange = {
+                    viewModel.onSearchQueryChanged(it)
+                    // Reset mask if user starts searching
+                    smartMaskedText = null
+                },
                 label = { Text("Search logic or phrase (Clear for Discovery)") },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -225,7 +283,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                 singleLine = true
             )
 
-            // Dynamic Layout Strategy
+            // Content Area
             if (searchQuery.isBlank()) {
                 // --- DISCOVERY MODE (Single Centered Card) ---
                 Box(
@@ -239,6 +297,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                                 card = card,
                                 isFlipped = globalIsFlipped,
                                 onToggleFlip = { viewModel.toggleFlip() },
+                                smartMaskedText = smartMaskedText, // Pass the mask state
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .wrapContentHeight()
@@ -266,6 +325,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                                 card = card,
                                 isFlipped = localFlip,
                                 onToggleFlip = { localFlip = !localFlip },
+                                smartMaskedText = null, // No masking in list view
                                 modifier = Modifier.fillMaxWidth().wrapContentHeight()
                             )
                         }
@@ -276,51 +336,16 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     }
 }
 
-// ... (Keep MainScreen and DashboardScreen exactly as they are)
-
-
-// [UPDATE] Replace the entire FlashcardFlipItem function with this:
 @Composable
 fun FlashcardFlipItem(
     card: Flashcard,
     isFlipped: Boolean,
     onToggleFlip: () -> Unit,
+    smartMaskedText: String? = null,
     modifier: Modifier = Modifier
 ) {
-    // 1. Get the visual style based on the category
     val style = getCategoryStyle(card.category)
 
-    // --- NEW: Speech Logic State ---
-    val context = LocalContext.current
-    // Holds the text with blanks if the user gets > 50% right
-    var smartMaskedText by remember { mutableStateOf<String?>(null) }
-
-    // Launcher for the Microphone
-    val speechLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val data = result.data
-            // Get spoken text
-            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
-
-            // Compare Spoken vs Target (Back of card)
-            val comparison = SpeechComparator.evaluate(card.backEn, spokenText)
-
-            if (comparison.isSuccess) {
-                // Success: Update text to show blanks for missed words
-                smartMaskedText = comparison.maskedText
-                Toast.makeText(context, "Good match! 🎯", Toast.LENGTH_SHORT).show()
-            } else {
-                // Failure
-                Toast.makeText(context, "Try again (Accuracy < 50%)", Toast.LENGTH_SHORT).show()
-                smartMaskedText = null // Reset to full text if they fail, or keep as is
-            }
-        }
-    }
-    // -------------------------------
-
-    // Animation State
     val rotation by animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,
         animationSpec = tween(durationMillis = 400),
@@ -333,26 +358,26 @@ fun FlashcardFlipItem(
                 rotationY = rotation
                 cameraDistance = 12f * density
             }
-            .clickable {
-                // Reset the mask when flipping manually so the next view is fresh
-                if (isFlipped) smartMaskedText = null
-                onToggleFlip()
-            },
-        // Use a dark container color to make the neon colors pop (like the game)
+            .clickable { onToggleFlip() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
+        // Enforce a minimum height (300.dp) so the AutoResizingText has space to work with
         Box(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
             if (rotation <= 90f) {
                 // --- FRONT SIDE (Portuguese) ---
-                // (This section is UNCHANGED from your code)
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -371,16 +396,17 @@ fun FlashcardFlipItem(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    // Main Content (Auto Resizing)
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AutoResizingText(
+                            text = card.frontPt,
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                    }
 
-                    Text(
-                        text = card.frontPt,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    // Footer
                     Text(
                         text = "\"${card.literalLogic}\"",
                         style = MaterialTheme.typography.bodyMedium,
@@ -388,15 +414,15 @@ fun FlashcardFlipItem(
                         color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
             } else {
                 // --- BACK SIDE (English) ---
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer { rotationY = 180f }, // Correct text mirroring
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .fillMaxSize()
+                        .graphicsLayer { rotationY = 180f },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
                     // Header
                     Row(
@@ -417,68 +443,86 @@ fun FlashcardFlipItem(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-
                     Text(
                         text = card.concept.uppercase(),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // --- TARGET TEXT AREA (Modified) ---
-                    // If we have a smart mask (success), show it. Otherwise show full answer.
-                    Text(
-                        text = smartMaskedText ?: card.backEn,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        // Use category color, but maybe dim it slightly if it's the masked version
-                        color = if (smartMaskedText != null) style.color.copy(alpha = 0.8f) else style.color,
-                        textAlign = TextAlign.Center
-                    )
-
-                    // Helper text if masked
-                    if (smartMaskedText != null) {
-                        Text(
-                            text = "(Tap card to reset)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 4.dp)
+                    // Main Content (Auto Resizing)
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AutoResizingText(
+                            text = smartMaskedText ?: card.backEn,
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                            color = if (smartMaskedText != null) style.color.copy(alpha = 0.8f) else style.color,
+                            textAlign = TextAlign.Center
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // --- MIC BUTTON (New) ---
-                    // Only show Mic button if we are NOT currently showing the success mask
-                    // (Or keep it if you want them to be able to try again immediately)
-                    IconButton(
-                        onClick = {
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Read: ${card.backEn}")
-                            }
-                            speechLauncher.launch(intent)
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surface,
-                                shape = CircleShape
-                            )
-                            .border(1.dp, style.color.copy(alpha = 0.5f), CircleShape)
+                    // Footer Area (Hint + Literal Logic)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Speak Answer",
-                            tint = style.color // Match the category neon color
+                        if (smartMaskedText != null) {
+                            Text(
+                                text = "(Tap card to reset)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+
+                        // [NEW] Literal Logic on Back Side (Same spot as front)
+                        Text(
+                            text = "\"${card.literalLogic}\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontStyle = FontStyle.Italic,
+                            color = MaterialTheme.colorScheme.secondary,
+                            textAlign = TextAlign.Center
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
     }
+}
+
+// [NEW] Helper for auto-sizing text
+@Composable
+fun AutoResizingText(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    textAlign: TextAlign = TextAlign.Center
+) {
+    // Remember the current size so we don't reset unnecessarily,
+    // but reset if the text or base style changes.
+    var resizedTextStyle by remember(text, style) { mutableStateOf(style) }
+    var readyToDraw by remember(text, style) { mutableStateOf(false) }
+
+    Text(
+        text = text,
+        color = color,
+        textAlign = textAlign,
+        modifier = modifier.drawWithContent {
+            if (readyToDraw) drawContent()
+        },
+        style = resizedTextStyle,
+        softWrap = true,
+        onTextLayout = { result ->
+            // If the text overflows the container height or width, shrink it
+            if (result.didOverflowHeight || result.didOverflowWidth) {
+                // Reduce font size by 5% and retry
+                resizedTextStyle = resizedTextStyle.copy(
+                    fontSize = resizedTextStyle.fontSize * 0.95
+                )
+            } else {
+                // Fits! Show it.
+                readyToDraw = true
+            }
+        }
+    )
 }
