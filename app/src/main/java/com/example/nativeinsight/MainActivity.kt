@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// [NEW] This Composable manages the Bottom Navigation and switching screens
+// This Composable manages the Bottom Navigation and switching screens
 @Composable
 fun MainScreen() {
     // Create the ViewModel ONCE here to share it between screens
@@ -155,10 +155,10 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     // Context for Toasts and Intent
     val context = LocalContext.current
 
-    // [NEW] State for speech matching (lifted from the card to here)
+    // State for speech matching
     var smartMaskedText by remember { mutableStateOf<String?>(null) }
 
-    // [NEW] Speech Launcher (lifted from the card to here)
+    // Speech Launcher
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -171,15 +171,33 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                 val currentCard = flashcards[0]
                 if (currentCard != null) {
                     val comparison = SpeechComparator.evaluate(currentCard.backEn, spokenText)
+
+                    // Calculate percentage for display
+                    val accuracyPct = (comparison.score * 100).toInt()
+
                     if (comparison.isSuccess) {
-                        smartMaskedText = comparison.maskedText
-                        Toast.makeText(context, "Good match! 🎯", Toast.LENGTH_SHORT).show()
+                        // --- MATCH SUCCESS LOGIC ---
+                        if (comparison.score >= 0.99f) {
+                            // 100% Accuracy: Show original text (Capitalized/Punctuated)
+                            smartMaskedText = currentCard.backEn
+                            Toast.makeText(context, "Perfect! 100% 💯", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // 50% - 99%: Show masked text (with blanks)
+                            smartMaskedText = comparison.maskedText
+                            Toast.makeText(context, "Good match! ($accuracyPct%) 🎯", Toast.LENGTH_SHORT).show()
+                        }
+
+                        // Auto-flip to Back if currently on Front
                         if (!viewModel.isFlipped.value) {
                             viewModel.toggleFlip()
                         }
+
                     } else {
-                        Toast.makeText(context, "Try again (Accuracy < 50%)", Toast.LENGTH_SHORT).show()
-                        smartMaskedText = null
+                        // < 50%: Failure
+                        Toast.makeText(context, "Try again ($accuracyPct%)", Toast.LENGTH_SHORT).show()
+                        // [FIX] Do NOT clear the mask on failure.
+                        // We leave smartMaskedText as it is, so if the user had a mask, they keep it.
+                        // If they were on the front, they stay on the front.
                     }
                 }
             }
@@ -194,7 +212,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-        // [NEW] Floating Mic Button (Only in Discovery Mode)
+        // Floating Mic Button (Only in Discovery Mode)
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             if (searchQuery.isBlank() && flashcards.itemCount > 0) {
@@ -206,14 +224,13 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
-                                //putExtra(RecognizerIntent.EXTRA_PROMPT, "Read: ${currentCard.backEn}")
                             }
                             speechLauncher.launch(intent)
                         }
                     },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.padding(bottom = 1.dp) // Slight padding to separate from Nav Bar area
+                    modifier = Modifier.padding(bottom = 8.dp) // Slight padding to separate from Nav Bar area
                 ) {
                     Icon(Icons.Default.Mic, contentDescription = "Speak")
                 }
@@ -241,7 +258,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
                         val currentCard = if (flashcards.itemCount > 0) flashcards[0] else null
-                        // [UPDATE] Reset mask on refresh
+                        // Reset mask on refresh
                         smartMaskedText = null
                         viewModel.refreshDiscovery(currentCard)
                     }) {
@@ -474,7 +491,7 @@ fun FlashcardFlipItem(
                             )
                         }
 
-                        // [NEW] Literal Logic on Back Side (Same spot as front)
+                        // Literal Logic on Back Side
                         Text(
                             text = "\"${card.literalLogic}\"",
                             style = MaterialTheme.typography.bodyMedium,
@@ -489,7 +506,7 @@ fun FlashcardFlipItem(
     }
 }
 
-// [NEW] Helper for auto-sizing text
+// Helper for auto-sizing text
 @Composable
 fun AutoResizingText(
     text: String,

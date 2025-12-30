@@ -6,6 +6,7 @@ object SpeechComparator {
 
     data class Result(
         val isSuccess: Boolean,
+        val score: Float, // [NEW] Added to track specific accuracy (0.0 to 1.0)
         val maskedText: String? // The text with blanks, e.g., "I _____ go"
     )
 
@@ -14,7 +15,7 @@ object SpeechComparator {
         val tWords = clean(target)
         val sWords = clean(spoken)
 
-        if (tWords.isEmpty()) return Result(false, null)
+        if (tWords.isEmpty()) return Result(false, 0f, null)
 
         // 2. Find matching words (LCS)
         val matches = getLCS(tWords, sWords)
@@ -25,8 +26,6 @@ object SpeechComparator {
         // 4. Determine Outcome (Threshold: 50%)
         if (accuracy >= 0.5) {
             // Build the "Masked" string
-            // We iterate through the target words. If a word was found in the spoken text (LCS), keep it.
-            // If not, replace it with underscores.
             val resultBuilder = StringBuilder()
             var matchIndex = 0
 
@@ -38,9 +37,10 @@ object SpeechComparator {
                     resultBuilder.append("_____ ")
                 }
             }
-            return Result(true, resultBuilder.toString().trim())
+            // Return Success + Score + Masked Text
+            return Result(true, accuracy, resultBuilder.toString().trim())
         } else {
-            return Result(false, null)
+            return Result(false, accuracy, null)
         }
     }
 
