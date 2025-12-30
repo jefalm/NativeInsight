@@ -188,34 +188,27 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun backupDatabase(destinationUri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Force a "Checkpoint" to ensure all data in memory/WAL is written to the main file
-                //    This prevents backing up an empty or incomplete database.
-                db.openHelper.writableDatabase.query(SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)"))
+                // 1. Force all WAL changes into the main .db file
+                // This replaces the need to close the database.
+                db.openHelper.writableDatabase.query(
+                    SimpleSQLiteQuery("PRAGMA wal_checkpoint(FULL)")
+                ).use { it.moveToFirst() }
 
-                // 2. Locate the database file
-                db.close()
-
-                val dbName = "native-insight-db"
                 val context = getApplication<Application>()
-                val dbFile = context.getDatabasePath(dbName)
+                val dbFile = context.getDatabasePath("native-insight-db")
 
-                // 3. Copy data from the db file to the destination Uri (Google Drive)
                 if (dbFile.exists()) {
-                    context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
-                        dbFile.inputStream().use { inputStream ->
-                            inputStream.copyTo(outputStream)
+                    context.contentResolver.openOutputStream(destinationUri)?.use { output ->
+                        dbFile.inputStream().use { input ->
+                            input.copyTo(output)
                         }
                     }
-                    // Optional: Emit a success state or Toast here
+                    // No need to close() or re-init! The UI remains alive.
                 }
-                // 3. RE-INIT: Trigger a simple query to re-open the database
-                // This ensures the next user action doesn't experience a 'cold start' lag
-                db.flashcardDao().getCountForBucket(0)
-
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Optional: Emit an error state here
             }
         }
     }
+
 }

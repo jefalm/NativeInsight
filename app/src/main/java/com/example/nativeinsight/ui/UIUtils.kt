@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -39,23 +38,18 @@ fun getCategoryStyle(categoryRaw: String): CategoryStyle {
             label = "Health & Wellbeing"
         )
         categoryRaw.contains("Street", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.LocationOn,
+            icon = Icons.Default.Face,
             color = Color(0xFF8BE9FD),      // Cyan
             label = "Street & Social"
         )
-        categoryRaw.contains("Dynamics", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.Groups,    // People icon
-            color = Color(0xFFFF79C6),      // Pink
-            label = "Social Dynamics"
-        )
         categoryRaw.contains("Habits", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.Refresh,   // Loop icon
+            icon = Icons.Default.Palette,   // Loop icon
             color = Color(0xFFF1FA8C),      // Yellow
             label = "Habits & Hobbies"
         )
         categoryRaw.contains("Admin", ignoreCase = true) -> CategoryStyle(
-            icon = Icons.Default.List,
-            color = Color(0xFF6272A4),      // Muted Blue
+            icon = Icons.Default.Inventory,
+            color = Color(0xFF8BE9FD),      // Vibrant Cyan
             label = "Life Admin & Logistics"
         )
         categoryRaw.contains("Global", ignoreCase = true) || categoryRaw.contains("News", ignoreCase = true) -> CategoryStyle(

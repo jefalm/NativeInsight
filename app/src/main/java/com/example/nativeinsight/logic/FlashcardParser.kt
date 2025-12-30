@@ -16,6 +16,13 @@ object FlashcardParser {
         var back = ""
         var literal = ""
 
+        // 1. Define the strict bucket list
+        val validCategories = setOf(
+            "Street & Social", "Social Dynamics", "Workplace & Data",
+            "Music & Urban Culture", "Habits & Hobbies", "Health & Wellbeing",
+            "Life Admin & Logistics", "Global Context & News"
+        )
+
         // Helper to save the pending card to the list
         fun savePendingCard() {
             if (concept.isNotBlank() && front.isNotBlank() && back.isNotBlank()) {
@@ -73,9 +80,17 @@ object FlashcardParser {
 
                     // 4. Category Header Detected
                     else -> {
-                        // It is a category header (e.g., "Music & Urban Culture")
-                        savePendingCard() // Save any pending card first
-                        currentCategory = trimmed
+                        if (validCategories.contains(trimmed)) {
+                            savePendingCard()
+                            currentCategory = trimmed
+                        } else if (trimmed.isNotEmpty()) {
+                            // Appends overflow text to the previous field instead of breaking the category
+                            when {
+                                literal.isNotEmpty() -> literal += " $trimmed"
+                                back.isNotEmpty() -> back += " $trimmed"
+                                front.isNotEmpty() -> front += " $trimmed"
+                            }
+                        }
                     }
                 }
             }
