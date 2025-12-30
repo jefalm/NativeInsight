@@ -138,22 +138,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     // [New] Update Stats & Refresh
     fun refreshDiscovery(currentCard: Flashcard?) {
+        // Clear the active card immediately so the hardware buttons
+        // don't try to speak the OLD card while the NEW one is loading.
+        activeDiscoveryCard.value = null
+
         if (currentCard != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                // [NEW CODE] Identifying card by ID
                 db.flashcardDao().markCardReviewed(
                     id = currentCard.id,
                     timestamp = System.currentTimeMillis()
                 )
-
-                // Trigger UI update after DB write
                 withContext(Dispatchers.Main) {
                     isFlipped.value = false
                     refreshTrigger.value += 1
                 }
             }
         } else {
-            // Just refresh if no card was present
             isFlipped.value = false
             refreshTrigger.value += 1
         }
@@ -235,5 +235,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
+
+    // 1. Keep track of the active card for TTS
+    val activeDiscoveryCard = MutableStateFlow<Flashcard?>(null)
+
+    fun updateActiveCard(card: Flashcard?) {
+        activeDiscoveryCard.value = card
+    }
+
+    // 2. A trigger for the Speech-to-Text launcher
+    private val _micTrigger = MutableStateFlow(0)
+    val micTrigger: Flow<Int> = _micTrigger
+
+    fun triggerMic() {
+        _micTrigger.value += 1
+    }
+
+
 
 }

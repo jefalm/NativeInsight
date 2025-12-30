@@ -1,8 +1,12 @@
 package com.example.nativeinsight
 
+import android.content.ContentValues.TAG
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import android.util.Log
+import android.view.KeyEvent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,6 +50,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
@@ -74,17 +80,53 @@ import com.example.nativeinsight.ui.FloatingIcon
 import com.example.nativeinsight.ui.getCategoryStyle
 import com.example.nativeinsight.ui.theme.NativeInsightTheme
 import com.example.nativeinsight.viewmodel.DashboardViewModel
+import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
+    private lateinit var tts: TextToSpeech
+    private lateinit var viewModel: DashboardViewModel
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        tts = TextToSpeech(this, this)
         setContent {
             NativeInsightTheme {
+                viewModel = viewModel()
                 MainScreen()
             }
         }
     }
-}
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            tts.language = Locale.US
+        }}
+        override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+            when (keyCode) {
+                KeyEvent.KEYCODE_VOLUME_DOWN -> {
+
+                    // Read the English (Back) side of the active card
+                    val card = viewModel.activeDiscoveryCard.value
+                    Log.d(TAG, card.toString())
+                    card?.let {
+                        tts.speak(it.backEn, TextToSpeech.QUEUE_FLUSH, null, null)
+                    }
+                    return true // Consume the event so the volume doesn't actually change
+                }
+                KeyEvent.KEYCODE_HEADSETHOOK -> {
+                    // Trigger the mic logic in the ViewModel
+                    viewModel.triggerMic()
+                    return true
+                }
+            }
+            return super.onKeyDown(keyCode, event)
+        }
+
+        override fun onDestroy() {
+            tts.stop()
+            tts.shutdown()
+            super.onDestroy()
+        }
+    }
+
 
 // This Composable manages the Bottom Navigation and switching screens
 @Composable
@@ -96,6 +138,15 @@ fun MainScreen() {
 
     // State to track which tab is active ("dashboard" or "analytics")
     var currentScreen by remember { mutableStateOf("dashboard") }
+
+    LaunchedEffect(flashcards.loadState.refresh) {
+        if (flashcards.loadState.refresh is LoadState.NotLoading) {
+            if (flashcards.itemCount > 0) {
+                val nextCard = flashcards[0]
+                viewModel.updateActiveCard(nextCard)
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -542,4 +593,5 @@ fun AutoResizingText(
             }
         }
     )
+
 }
