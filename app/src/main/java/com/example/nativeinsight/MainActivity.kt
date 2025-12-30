@@ -64,6 +64,17 @@ import com.example.nativeinsight.ui.getCategoryStyle
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Edit
 import com.example.nativeinsight.ui.EditScreen
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import com.example.nativeinsight.logic.SpeechComparator
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -279,6 +290,36 @@ fun FlashcardFlipItem(
     // 1. Get the visual style based on the category
     val style = getCategoryStyle(card.category)
 
+    // --- NEW: Speech Logic State ---
+    val context = LocalContext.current
+    // Holds the text with blanks if the user gets > 50% right
+    var smartMaskedText by remember { mutableStateOf<String?>(null) }
+
+    // Launcher for the Microphone
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val data = result.data
+            // Get spoken text
+            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+
+            // Compare Spoken vs Target (Back of card)
+            val comparison = SpeechComparator.evaluate(card.backEn, spokenText)
+
+            if (comparison.isSuccess) {
+                // Success: Update text to show blanks for missed words
+                smartMaskedText = comparison.maskedText
+                Toast.makeText(context, "Good match! 🎯", Toast.LENGTH_SHORT).show()
+            } else {
+                // Failure
+                Toast.makeText(context, "Try again (Accuracy < 50%)", Toast.LENGTH_SHORT).show()
+                smartMaskedText = null // Reset to full text if they fail, or keep as is
+            }
+        }
+    }
+    // -------------------------------
+
     // Animation State
     val rotation by animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,
@@ -292,7 +333,11 @@ fun FlashcardFlipItem(
                 rotationY = rotation
                 cameraDistance = 12f * density
             }
-            .clickable { onToggleFlip() },
+            .clickable {
+                // Reset the mask when flipping manually so the next view is fresh
+                if (isFlipped) smartMaskedText = null
+                onToggleFlip()
+            },
         // Use a dark container color to make the neon colors pop (like the game)
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -303,11 +348,11 @@ fun FlashcardFlipItem(
         ) {
             if (rotation <= 90f) {
                 // --- FRONT SIDE (Portuguese) ---
+                // (This section is UNCHANGED from your code)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Header: Category Label + Floating Icon
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -317,7 +362,7 @@ fun FlashcardFlipItem(
                             text = style.label.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = style.color // Neon color
+                            color = style.color
                         )
                         FloatingIcon(
                             icon = style.icon,
@@ -353,14 +398,12 @@ fun FlashcardFlipItem(
                         .graphicsLayer { rotationY = 180f }, // Correct text mirroring
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Header: Category Label + Floating Icon (Mirrored for back)
+                    // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween, // Swap alignment if desired, or keep uniform
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Note: Because the whole Column is flipped 180, this Row layout
-                        // physically appears correctly left-to-right to the user.
                         Text(
                             text = style.label.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
@@ -383,13 +426,56 @@ fun FlashcardFlipItem(
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    // --- TARGET TEXT AREA (Modified) ---
+                    // If we have a smart mask (success), show it. Otherwise show full answer.
                     Text(
-                        text = card.backEn,
+                        text = smartMaskedText ?: card.backEn,
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold,
-                        color = style.color, // Use the category color for the answer!
+                        // Use category color, but maybe dim it slightly if it's the masked version
+                        color = if (smartMaskedText != null) style.color.copy(alpha = 0.8f) else style.color,
                         textAlign = TextAlign.Center
                     )
+
+                    // Helper text if masked
+                    if (smartMaskedText != null) {
+                        Text(
+                            text = "(Tap card to reset)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // --- MIC BUTTON (New) ---
+                    // Only show Mic button if we are NOT currently showing the success mask
+                    // (Or keep it if you want them to be able to try again immediately)
+                    IconButton(
+                        onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Read: ${card.backEn}")
+                            }
+                            speechLauncher.launch(intent)
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = CircleShape
+                            )
+                            .border(1.dp, style.color.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Speak Answer",
+                            tint = style.color // Match the category neon color
+                        )
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
