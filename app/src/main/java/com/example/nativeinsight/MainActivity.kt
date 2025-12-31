@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -59,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -81,6 +83,7 @@ import com.example.nativeinsight.ui.getCategoryStyle
 import com.example.nativeinsight.ui.theme.NativeInsightTheme
 import com.example.nativeinsight.viewmodel.DashboardViewModel
 import java.util.Locale
+import androidx.compose.ui.platform.LocalFocusManager
 
 class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
@@ -214,7 +217,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     // State for speech matching
     var smartMaskedText by remember { mutableStateOf<String?>(null) }
 
-
+    val focusManager = LocalFocusManager.current
+    var isSearchFocused by remember { mutableStateOf(false) } // Track focus state
 
     // Speech Launcher
     val speechLauncher = rememberLauncherForActivityResult(
@@ -261,6 +265,17 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
             }
         }
 
+    }
+    // Define this new launcher specifically for search
+    val searchSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val data = result.data
+            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+            // Directly populate the search box
+            viewModel.onSearchQueryChanged(spokenText)
+        }
     }
     LaunchedEffect(micTrigger) {
         // We only trigger if micTrigger > 0 (to avoid running on app start)
@@ -359,10 +374,36 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
                     // Reset mask if user starts searching
                     smartMaskedText = null
                 },
-                label = { Text("Search logic or phrase (Clear for Discovery)") },
+                label = { Text("Search logic or phrase") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .padding(bottom = 55.dp)
+                    .onFocusChanged { isSearchFocused = it.isFocused },
+                trailingIcon = {
+                    // Logic: Show button only if focused
+                    if (isSearchFocused) {
+                        if (searchQuery.isEmpty()) {
+                            // MIC: Only shows when focused and empty
+                            IconButton(onClick = {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                                }
+                                searchSpeechLauncher.launch(intent) // Uses the new specific launcher
+                            }) {
+                                Icon(Icons.Default.Mic, contentDescription = "Voice Search")
+                            }
+                        } else {
+                            // Focus + Text = Clear Button
+                            IconButton(onClick = {
+                                viewModel.onSearchQueryChanged("")
+                                focusManager.clearFocus()
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear Search")
+                            }
+                        }
+                    }
+                },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -376,8 +417,8 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
             if (searchQuery.isBlank()) {
                 // --- DISCOVERY MODE (Single Centered Card) ---
                 Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter
                 ) {
                     if (flashcards.itemCount > 0) {
                         val card = flashcards[0]
