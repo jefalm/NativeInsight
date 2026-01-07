@@ -53,7 +53,7 @@ object FlashcardParser {
 
         inputStream.bufferedReader().useLines { lines ->
             lines.forEach { line ->
-                val trimmed = line.trim()
+                val trimmed = line.replace("\uFEFF", "").trim()
 
                 when {
                     // 1. Skip empty lines or separators
