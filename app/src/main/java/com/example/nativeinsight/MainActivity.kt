@@ -209,7 +209,6 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val flashcards = viewModel.flashcardPager.collectAsLazyPagingItems()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val globalIsFlipped by viewModel.isFlipped.collectAsState()
-    val micTrigger by viewModel.micTriggerSignal.collectAsState()
 
     // Context for Toasts and Intent
     val context = LocalContext.current
@@ -277,16 +276,19 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
             viewModel.onSearchQueryChanged(spokenText)
         }
     }
-    LaunchedEffect(micTrigger) {
-        // We only trigger if micTrigger > 0 (to avoid running on app start)
-        if (micTrigger > 0 && flashcards.itemCount > 0) {
-            val currentCard = flashcards[0]
-            if (currentCard != null) {
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+
+    // Listen for hardware mic triggers as events
+    LaunchedEffect(Unit) {
+        viewModel.micTriggerSignal.collect {
+            if (flashcards.itemCount > 0) {
+                val currentCard = flashcards[0]
+                if (currentCard != null) {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                    }
+                    speechLauncher.launch(intent)
                 }
-                speechLauncher.launch(intent)
             }
         }
     }
@@ -655,5 +657,4 @@ fun AutoResizingText(
             }
         }
     )
-
 }
