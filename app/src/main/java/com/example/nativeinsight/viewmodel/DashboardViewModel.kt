@@ -80,7 +80,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             // Selection with Fallback Logic
             // Priority: Target -> Next Higher Bucket -> Reset to 0
             when {
-                roll < 90 -> resolveBucket(0, has0, has1, has2, has3)
+                roll < 70 -> resolveBucket(0, has0, has1, has2, has3)
                 roll < 96 -> resolveBucket(1, has1, has2, has3, has0)
                 roll < 99 -> resolveBucket(2, has2, has3, has0, has1)
                 else      -> resolveBucket(3, has3, has0, has1, has2)
@@ -134,7 +134,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun getWeightedPagingSource(bucket: Int) = when (bucket) {
         0 -> db.flashcardDao().getRandomFromBucket(0)
-        1 -> db.flashcardDao().getRandomFromBucket(1)
+        1 -> db.flashcardDao().getRandomFromOldestHalfBucketOne()
         2 -> db.flashcardDao().getRandomFromBucket(2)
         else -> db.flashcardDao().getRandomFromBucketAbove(3)
     }

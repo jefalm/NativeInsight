@@ -16,8 +16,23 @@ interface FlashcardDao {
 
     // --- [New] Weighted Fetch Queries ---
 
+    // FlashcardDao.kt
+
+    @Query("""
+    WITH OldestHalf AS (
+        SELECT * FROM flashcards 
+        WHERE revision_count = 1 
+        ORDER BY last_reviewed ASC 
+        LIMIT (SELECT COUNT(*) / 2 FROM flashcards WHERE revision_count = 1)
+    )
+    SELECT * FROM OldestHalf ORDER BY RANDOM() LIMIT 1
+""")
+    fun getRandomFromOldestHalfBucketOne(): PagingSource<Int, Flashcard>
+
     // Get a random card with exact revision count (Buckets 0, 1, 2)
-    @Query("SELECT * FROM flashcards WHERE revision_count = :count ORDER BY RANDOM() LIMIT 1")
+//    @Query("SELECT * FROM flashcards WHERE revision_count = :count ORDER BY RANDOM() LIMIT 1")
+//    fun getRandomFromBucket(count: Int): PagingSource<Int, Flashcard>
+    @Query("SELECT * FROM flashcards WHERE revision_count = :count ORDER BY CASE WHEN :count = 0 THEN id ELSE RANDOM() END DESC LIMIT 1")
     fun getRandomFromBucket(count: Int): PagingSource<Int, Flashcard>
 
     // Get a random card with revision count >= min (Bucket 3+)
