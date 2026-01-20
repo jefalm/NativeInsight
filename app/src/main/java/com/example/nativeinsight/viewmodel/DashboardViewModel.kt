@@ -46,14 +46,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     val flashcardPager: Flow<PagingData<Flashcard>> = combine(searchQuery, refreshTrigger) { query, _ ->
         query
     }.flatMapLatest { query ->
-        // [New] Determine bucket before creating Pager
+        // Determine bucket before creating Pager
         val targetBucket = if (query.isBlank()) determineTargetBucket() else -1
 
         Pager(
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
             pagingSourceFactory = {
                 if (query.isBlank()) {
-                    // [New] Use the pre-calculated bucket to fetch
+                    // Use the pre-calculated bucket to fetch
                     getWeightedPagingSource(targetBucket)
                 } else {
                     db.flashcardDao().searchFlashcards(query)
@@ -62,7 +62,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         ).flow
     }.cachedIn(viewModelScope)
 
-    // [New] Weighted Logic: 90% (0), 6% (1), 3% (2), 1% (3+)
+    // Weighted Logic: 90% (0), 6% (1), 3% (2), 1% (3+)
     private suspend fun determineTargetBucket(): Int {
         return withContext(Dispatchers.IO) {
             val dao = db.flashcardDao()
@@ -88,7 +88,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // [NEW] State for the card currently being edited
+    // State for the card currently being edited
     val cardInEditMode = MutableStateFlow<Flashcard?>(null)
 
     fun setCardForEdit(card: Flashcard?) {
@@ -139,7 +139,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         else -> db.flashcardDao().getRandomFromBucketAbove(3)
     }
 
-    // [New] Update Stats & Refresh
+    // Update Stats & Refresh
     fun refreshDiscovery(currentCard: Flashcard?) {
         // Clear the active card immediately so the hardware buttons
         // don't try to speak the OLD card while the NEW one is loading.
@@ -162,7 +162,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // [New] Analytics Helper
+    // Analytics Helper
     fun getAnalyticsCounts(onResult: (Map<String, Int>) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val counts = mapOf(
@@ -188,7 +188,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 getApplication<Application>().contentResolver.openInputStream(uri)?.use { stream ->
-                    //val rawText = stream.reader().readText()
                     val parsedCards = FlashcardParser.parse(stream)
                     db.flashcardDao().insertAll(parsedCards)
                 }
