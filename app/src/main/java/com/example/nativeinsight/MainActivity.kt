@@ -84,6 +84,8 @@ import com.example.nativeinsight.ui.theme.NativeInsightTheme
 import com.example.nativeinsight.viewmodel.DashboardViewModel
 import java.util.Locale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
+import com.example.nativeinsight.logic.SmartChunker
 
 class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
@@ -531,7 +533,7 @@ fun FlashcardFlipItem(
                     // Main Content (Auto Resizing)
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         AutoResizingText(
-                            text = card.frontPt,
+                            text = SmartChunker.colorize(card.frontPt, isEnglish = false),
                             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center
@@ -540,7 +542,7 @@ fun FlashcardFlipItem(
 
                     // Footer
                     Text(
-                        text = "\"${card.literalLogic}\"",
+                        text = SmartChunker.colorize(card.literalLogic, isEnglish = false),
                         style = MaterialTheme.typography.bodyMedium,
                         fontStyle = FontStyle.Italic,
                         color = MaterialTheme.colorScheme.secondary,
@@ -585,7 +587,7 @@ fun FlashcardFlipItem(
                     // Main Content (Auto Resizing)
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         AutoResizingText(
-                            text = smartMaskedText ?: card.backEn,
+                            text = SmartChunker.colorize(smartMaskedText ?: card.backEn, isEnglish = true),
                             style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                             color = if (smartMaskedText != null) style.color.copy(alpha = 0.8f) else style.color,
                             textAlign = TextAlign.Center
@@ -608,7 +610,7 @@ fun FlashcardFlipItem(
 
                         // Literal Logic on Back Side
                         Text(
-                            text = "\"${card.literalLogic}\"",
+                            text = SmartChunker.colorize(card.literalLogic, isEnglish = false),
                             style = MaterialTheme.typography.bodyMedium,
                             fontStyle = FontStyle.Italic,
                             color = MaterialTheme.colorScheme.secondary,
@@ -624,7 +626,7 @@ fun FlashcardFlipItem(
 // Helper for auto-sizing text
 @Composable
 fun AutoResizingText(
-    text: String,
+    text: AnnotatedString,
     style: androidx.compose.ui.text.TextStyle,
     modifier: Modifier = Modifier,
     color: Color = Color.Unspecified,
