@@ -79,6 +79,20 @@ interface FlashcardDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(flashcards: List<Flashcard>)
+
+    // --- [New] Semantic Cluster Helpers ---
+
+    // 1. Get a single random anchor card from "Fresh" material (revision < 2)
+    @Query("SELECT * FROM flashcards WHERE revision_count < 2 ORDER BY RANDOM() LIMIT 1")
+    suspend fun getRandomAnchorCard(): Flashcard?
+
+    // 2. Get all other fresh candidates to compare against the anchor
+    @Query("SELECT * FROM flashcards WHERE revision_count < 2 AND id != :anchorId")
+    suspend fun getFreshCandidates(anchorId: Int): List<Flashcard>
+
+    // 3. Batch update for the entire cluster
+    @Query("UPDATE flashcards SET revision_count = revision_count + 1, last_reviewed = :timestamp WHERE id IN (:ids)")
+    suspend fun markClusterReviewed(ids: List<Int>, timestamp: Long)
 }
 
 data class RevisionStat(

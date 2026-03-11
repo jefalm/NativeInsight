@@ -86,6 +86,8 @@ import java.util.Locale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import com.example.nativeinsight.logic.SmartChunker
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.ViewCarousel
 
 class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
@@ -185,6 +187,12 @@ fun MainScreen() {
                         currentScreen = "editor"
                     }
                 )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.ViewCarousel, contentDescription = "Clusters") },
+                    label = { Text("Clusters") },
+                    selected = currentScreen == "clusters",
+                    onClick = { currentScreen = "clusters" }
+                )
             }
         }
     ) { innerPadding ->
@@ -201,6 +209,7 @@ fun MainScreen() {
                     viewModel = viewModel,
                     onNavigateBack = { currentScreen = "dashboard" }
                 )
+                "clusters" -> ClusterScreen(viewModel = viewModel)
             }
         }
     }
@@ -659,4 +668,97 @@ fun AutoResizingText(
             }
         }
     )
+}
+
+@Composable
+fun ClusterScreen(viewModel: DashboardViewModel) {
+    val clusterCards by viewModel.activeCluster.collectAsState()
+    val targetCard by viewModel.targetClusterCard.collectAsState()
+    val context = LocalContext.current
+
+    // 1. Cluster-Specific Speech Launcher
+    val clusterSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+
+            targetCard?.let { card ->
+                // Use your existing SpeechComparator logic
+                val comparison = SpeechComparator.evaluate(card.backEn, spokenText)
+                val accuracyPct = (comparison.score * 100).toInt()
+
+                if (comparison.isSuccess) {
+                    if (comparison.score >= 0.99f) {
+                        Toast.makeText(context, "Perfect! 100% 💯", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Good match! ($accuracyPct%) 🎯", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Try again ($accuracyPct%)", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    // 2. Load initial cluster if empty
+    LaunchedEffect(Unit) {
+        if (clusterCards.isEmpty()) {
+            viewModel.loadSemanticCluster()
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Semantic Cluster Practice", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. The Vertical Stack
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(clusterCards) { card ->
+                ClusterCardRow(
+                    card = card,
+                    onMicClicked = {
+                        // Set the target, then launch the mic
+                        viewModel.setTargetClusterCard(card)
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                        }
+                        clusterSpeechLauncher.launch(intent)
+                    }
+                )
+            }
+        }
+
+        // 4. Batch Update Button
+        Button(
+            onClick = { viewModel.submitClusterAndRefresh() },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        ) {
+            Text("Shuffle Next Cluster (Mark 4x Reviewed)")
+        }
+    }
+}
+
+// Reusable UI for the 4 individual items
+@Composable
+fun ClusterCardRow(card: Flashcard, onMicClicked: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = card.frontPt, fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = card.backEn, color = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onMicClicked) {
+                Icon(Icons.Default.Mic, contentDescription = "Practice Phrase", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
 }

@@ -263,4 +263,67 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // State to hold our 4-card Semantic Cluster
+    val activeCluster = MutableStateFlow<List<Flashcard>>(emptyList())
+
+    // Step 1 & 2: Generate the Cluster
+    fun loadSemanticCluster() {
+        // Use Default dispatcher because Levenshtein is a CPU-intensive task
+        viewModelScope.launch(Dispatchers.Default) {
+            val dao = db.flashcardDao()
+
+            // 1. Fetch Anchor
+            val anchor = dao.getRandomAnchorCard()
+            if (anchor == null) {
+                // No fresh cards left! Handle this UI state (e.g., empty list)
+                activeCluster.value = emptyList()
+                return@launch
+            }
+
+            // 2. Fetch Candidates
+            val candidates = dao.getFreshCandidates(anchor.id)
+
+            // 3. Sort by Semantic Similarity (Levenshtein)
+            val topSimilarCards = candidates.sortedBy { candidate ->
+                // Compare the Portuguese Front text
+                com.example.nativeinsight.logic.StringMetrics.levenshtein(
+                    anchor.frontPt,
+                    candidate.frontPt
+                )
+            }.take(3) // Grab the top 3 closest matches
+
+            // 4. Combine Anchor + Top 3 and emit to UI
+            activeCluster.value = listOf(anchor) + topSimilarCards
+        }
+    }
+
+    // Step 4: Batch Update the Cluster
+    fun submitClusterAndRefresh() {
+        val currentCards = activeCluster.value
+        if (currentCards.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val idsToUpdate = currentCards.map { it.id }
+
+            // Increment revision and update timestamp for ALL 4 cards
+            db.flashcardDao().markClusterReviewed(
+                ids = idsToUpdate,
+                timestamp = System.currentTimeMillis()
+            )
+
+            // Trigger the UI to flip back, then load the next cluster
+            withContext(Dispatchers.Main) {
+                isFlipped.value = false
+                loadSemanticCluster() // Immediately fetch the next batch
+            }
+        }
+    }
+
+    // Tracks which of the 4 cards the user just tapped the Mic for
+    val targetClusterCard = MutableStateFlow<Flashcard?>(null)
+
+    fun setTargetClusterCard(card: Flashcard) {
+        targetClusterCard.value = card
+    }
+
 }
