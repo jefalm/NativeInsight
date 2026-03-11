@@ -87,7 +87,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import com.example.nativeinsight.logic.SmartChunker
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.runtime.mutableStateMapOf
 
 class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
@@ -98,7 +101,9 @@ class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
         setContent {
             NativeInsightTheme {
                 viewModel = viewModel()
-                MainScreen()
+                MainScreen(onSpeak = { text ->
+                    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+                })
             }
         }
     }
@@ -139,7 +144,7 @@ class MainActivity : ComponentActivity(),TextToSpeech.OnInitListener {
 
 // This Composable manages the Bottom Navigation and switching screens
 @Composable
-fun MainScreen() {
+fun MainScreen(onSpeak: (String) -> Unit) {
     // Create the ViewModel ONCE here to share it between screens
     val viewModel: DashboardViewModel = viewModel()
 
@@ -209,7 +214,7 @@ fun MainScreen() {
                     viewModel = viewModel,
                     onNavigateBack = { currentScreen = "dashboard" }
                 )
-                "clusters" -> ClusterScreen(viewModel = viewModel)
+                "clusters" -> ClusterScreen(viewModel = viewModel, onSpeak = onSpeak)
             }
         }
     }
@@ -671,12 +676,17 @@ fun AutoResizingText(
 }
 
 @Composable
-fun ClusterScreen(viewModel: DashboardViewModel) {
+fun ClusterScreen(
+    viewModel: DashboardViewModel,
+    onSpeak: (String) -> Unit // <--- Add this parameter to pass to TTS
+) {
     val clusterCards by viewModel.activeCluster.collectAsState()
     val targetCard by viewModel.targetClusterCard.collectAsState()
     val context = LocalContext.current
 
-    // 1. Cluster-Specific Speech Launcher
+    // Tracks the "revealed text" or "fill-in-the-blanks" state for each card by ID
+    val revealedTexts = remember { mutableStateMapOf<Int, String>() }
+
     val clusterSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -684,24 +694,30 @@ fun ClusterScreen(viewModel: DashboardViewModel) {
             val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
 
             targetCard?.let { card ->
-                // Use your existing SpeechComparator logic
                 val comparison = SpeechComparator.evaluate(card.backEn, spokenText)
                 val accuracyPct = (comparison.score * 100).toInt()
 
+                // Generate a full blank string (e.g., "_____ _____ _____") if the score is < 50%
+                val fallbackMask = card.backEn.split(" ").joinToString(" ") { "_____" }
+
                 if (comparison.isSuccess) {
                     if (comparison.score >= 0.99f) {
+                        revealedTexts[card.id] = card.backEn // 100% -> Show full text
                         Toast.makeText(context, "Perfect! 100% 💯", Toast.LENGTH_SHORT).show()
                     } else {
+                        // Success (>= 50%), maskedText exists, but ?: keeps the compiler happy
+                        revealedTexts[card.id] = comparison.maskedText ?: fallbackMask
                         Toast.makeText(context, "Good match! ($accuracyPct%) 🎯", Toast.LENGTH_SHORT).show()
                     }
                 } else {
+                    // Failed (< 50%). maskedText is null, so we use the fallback blanks
+                    revealedTexts[card.id] = comparison.maskedText ?: fallbackMask
                     Toast.makeText(context, "Try again ($accuracyPct%)", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    // 2. Load initial cluster if empty
     LaunchedEffect(Unit) {
         if (clusterCards.isEmpty()) {
             viewModel.loadSemanticCluster()
@@ -712,27 +728,31 @@ fun ClusterScreen(viewModel: DashboardViewModel) {
         Text("Semantic Cluster Practice", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 3. The Vertical Stack
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(clusterCards) { card ->
+            items(clusterCards, key = { it.id }) { card ->
                 ClusterCardRow(
                     card = card,
+                    revealedText = revealedTexts[card.id], // Pass the state down
                     onMicClicked = {
-                        // Set the target, then launch the mic
                         viewModel.setTargetClusterCard(card)
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
                         }
                         clusterSpeechLauncher.launch(intent)
+                    },
+                    onSpeakClicked = {
+                        onSpeak(card.backEn) // Trigger TTS for this specific card
                     }
                 )
             }
         }
 
-        // 4. Batch Update Button
         Button(
-            onClick = { viewModel.submitClusterAndRefresh() },
+            onClick = {
+                revealedTexts.clear() // Hide everything again for the next batch
+                viewModel.submitClusterAndRefresh()
+            },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
         ) {
             Text("Shuffle Next Cluster (Mark 4x Reviewed)")
@@ -742,22 +762,51 @@ fun ClusterScreen(viewModel: DashboardViewModel) {
 
 // Reusable UI for the 4 individual items
 @Composable
-fun ClusterCardRow(card: Flashcard, onMicClicked: () -> Unit) {
+fun ClusterCardRow(
+    card: Flashcard,
+    revealedText: String?,
+    onMicClicked: () -> Unit,
+    onSpeakClicked: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = card.frontPt, fontWeight = FontWeight.Medium)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = card.backEn, color = MaterialTheme.colorScheme.primary)
+                // Front (Portuguese) always visible
+                Text(text = card.frontPt, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Back (English) Logic
+                val isHidden = revealedText == null
+                val displayText = revealedText ?: "[ Tap Mic to Guess ]"
+                val textColor = when {
+                    revealedText == card.backEn -> MaterialTheme.colorScheme.primary // Perfect
+                    !isHidden -> MaterialTheme.colorScheme.secondary // Masked / Blanks
+                    else -> Color.Gray // Hidden state
+                }
+
+                Text(
+                    text = displayText,
+                    color = textColor,
+                    fontStyle = if (isHidden) FontStyle.Italic else FontStyle.Normal,
+                    fontSize = 16.sp
+                )
             }
-            IconButton(onClick = onMicClicked) {
-                Icon(Icons.Default.Mic, contentDescription = "Practice Phrase", tint = MaterialTheme.colorScheme.primary)
+
+            // Vertical Stack for Action Buttons
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onMicClicked) {
+                    Icon(Icons.Default.Mic, contentDescription = "Practice Phrase", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onSpeakClicked) {
+                    Icon(Icons.Default.VolumeUp, contentDescription = "Listen to Phrase", tint = MaterialTheme.colorScheme.secondary)
+                }
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.example.nativeinsight.ui
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
@@ -17,8 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.nativeinsight.MainActivity
 import com.example.nativeinsight.data.RevisionStat
 import com.example.nativeinsight.viewmodel.DashboardViewModel
 import java.text.SimpleDateFormat
@@ -29,6 +33,7 @@ import java.util.Locale
 fun AnalyticsScreen(viewModel: DashboardViewModel) {
     val stats by viewModel.analyticsData.collectAsState()
     val totalCards by viewModel.totalCardsCount.collectAsState()
+    val context = LocalContext.current
 
     val maxCount = remember(stats) { stats.maxOfOrNull { it.cardCount } ?: 1 }
 
@@ -37,6 +42,27 @@ fun AnalyticsScreen(viewModel: DashboardViewModel) {
         contract = ActivityResultContracts.CreateDocument("application/x-sqlite3")
     ) { uri ->
         uri?.let { viewModel.backupDatabase(it) }
+    }
+
+    // --- Restore Launcher ---
+    val restoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            viewModel.restoreDatabase(
+                sourceUri = it,
+                onSuccess = {
+                    Toast.makeText(context, "Database Restored! Restarting...", Toast.LENGTH_LONG).show()
+                    val intent = Intent(context, MainActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    context.startActivity(intent)
+                    Runtime.getRuntime().exit(0)
+                },
+                onError = {
+                    Toast.makeText(context, "Failed to restore database", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -55,7 +81,7 @@ fun AnalyticsScreen(viewModel: DashboardViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- UPDATED: Dark Themed Backup Button ---
+        // --- Backup Button ---
         Button(
             onClick = {
                 val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -63,13 +89,28 @@ fun AnalyticsScreen(viewModel: DashboardViewModel) {
                 backupLauncher.launch(fileName)
             },
             modifier = Modifier.fillMaxWidth(),
-            // Force Dark Colors
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF1E1E1E), // Dark Gray/Black
                 contentColor = Color.White          // White Text
             )
         ) {
             Text("Backup Database to Drive")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- Restore Button ---
+        Button(
+            onClick = {
+                restoreLauncher.launch(arrayOf("*/*"))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF1E1E1E), // Matches the Backup Button
+                contentColor = Color.White
+            )
+        ) {
+            Text("Load Backup Database")
         }
     }
 }

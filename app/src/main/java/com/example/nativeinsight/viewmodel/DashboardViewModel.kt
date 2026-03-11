@@ -238,6 +238,41 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun restoreDatabase(sourceUri: Uri, onSuccess: () -> Unit, onError: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Close the active Room database connection to release file locks
+                db.close()
+
+                val context = getApplication<Application>()
+                val dbFile = context.getDatabasePath("native-insight-db")
+                val walFile = context.getDatabasePath("native-insight-db-wal")
+                val shmFile = context.getDatabasePath("native-insight-db-shm")
+
+                // 2. Delete Write-Ahead Logging files (CRUCIAL: otherwise Room will corrupt the backup)
+                if (walFile.exists()) walFile.delete()
+                if (shmFile.exists()) shmFile.delete()
+
+                // 3. Copy the selected backup file over the app's current database file
+                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                    dbFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                // 4. Return to the Main Thread to trigger the app restart
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    onError()
+                }
+            }
+        }
+    }
+
     // 1. Keep track of the active card for TTS
     val activeDiscoveryCard = MutableStateFlow<Flashcard?>(null)
 
