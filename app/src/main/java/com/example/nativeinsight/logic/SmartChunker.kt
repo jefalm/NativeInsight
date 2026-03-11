@@ -14,7 +14,7 @@ object SmartChunker {
         Color(0xFFFFB86C), // Orange
         Color(0xFF50FA7B), // Green
         Color(0xFFFF79C6), // Pink
-        Color(0xFFBD93F9)  // Purple
+        Color(0xFF4143E7)  // Blue
     )
 
     // 1. Define Connectors (Standard Prepositions)
