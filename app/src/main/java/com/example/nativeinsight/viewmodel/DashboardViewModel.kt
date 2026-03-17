@@ -303,31 +303,35 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Step 1 & 2: Generate the Cluster
     fun loadSemanticCluster() {
-        // Use Default dispatcher because Levenshtein is a CPU-intensive task
         viewModelScope.launch(Dispatchers.Default) {
             val dao = db.flashcardDao()
 
-            // 1. Fetch Anchor
-            val anchor = dao.getRandomAnchorCard()
+            // 1. Attempt to fetch a strictly new Anchor
+            var anchor = dao.getStrictAnchorCard()
+
+            // 2. Trigger Fallback if no new cards exist
             if (anchor == null) {
-                // No fresh cards left! Handle this UI state (e.g., empty list)
+                anchor = dao.getFallbackAnchorCard()
+            }
+
+            // 3. Safety check in case the entire database is totally empty
+            if (anchor == null) {
                 activeCluster.value = emptyList()
                 return@launch
             }
 
-            // 2. Fetch Candidates
-            val candidates = dao.getFreshCandidates(anchor.id)
+            // 4. Fetch the ENTIRE rest of the deck for maximum similarity matching
+            val candidates = dao.getAllCandidates(anchor.id)
 
-            // 3. Sort by Semantic Similarity (Levenshtein)
+            // 5. Sort by Semantic Similarity (Levenshtein)
             val topSimilarCards = candidates.sortedBy { candidate ->
-                // Compare the Portuguese Front text
                 com.example.nativeinsight.logic.StringMetrics.levenshtein(
                     anchor.frontPt,
                     candidate.frontPt
                 )
-            }.take(3) // Grab the top 3 closest matches
+            }.take(3)
 
-            // 4. Combine Anchor + Top 3 and emit to UI
+            // Combine Anchor + Top 3 and emit to UI
             activeCluster.value = listOf(anchor) + topSimilarCards
         }
     }
